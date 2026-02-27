@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Pose Boxes - Three.js + MediaPipe</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #000;
+      font-family: sans-serif;
+    }
+
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #ui {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      z-index: 10;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 8px;
+      pointer-events: auto;
+      /* Enable interaction */
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .controls {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+    }
+
+    button,
+    label {
+      padding: 8px 12px;
+      background: #00ff88;
+      color: #000;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    button:hover,
+    label:hover {
+      background: #00cc6e;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .calibration {
+      margin-top: 15px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 8px;
+    }
+
+    .slider-group label {
+      background: none;
+      color: white;
+      padding: 0;
+      font-size: 0.8em;
+      margin-bottom: 4px;
+    }
+
+    .slider-group input {
+      width: 100%;
+    }
+
+    video {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      width: 320px;
+      height: 180px;
+      transform: scaleX(-1);
+      /* Default mirror for webcam */
+      border: 2px solid white;
+      border-radius: 8px;
+      background: #333;
+      z-index: 10;
+    }
+  </style>
+  <script type="module" crossorigin src="/assets/index-99xCB-nn.js"></script>
+</head>
+
+<body>
+  <div id="ui">
+    <h1>3D Pose Mesh</h1>
+    <p id="status">カメラ起動中...</p>
+    <div class="controls">
+      <button id="btn-webcam">Webcam</button>
+      <label for="video-upload">Upload Video</label>
+      <input type="file" id="video-upload" accept="video/*">
+    </div>
+    <div class="calibration">
+      <div class="slider-group">
+        <label>Shoulder (Roll):</label>
+        <input type="range" id="adj-roll" min="-45" max="45" value="0">
+      </div>
+      <div class="slider-group">
+        <label>Trunk (Pitch):</label>
+        <input type="range" id="adj-pitch" min="-45" max="45" value="0">
+      </div>
+      <div class="slider-group">
+        <label>Scale:</label>
+        <input type="range" id="adj-scale" min="0.5" max="5.0" step="0.1" value="2.5">
+      </div>
+      <div class="slider-group">
+        <label>Offset X:</label>
+        <input type="range" id="adj-x" min="-2.0" max="2.0" step="0.1" value="0">
+      </div>
+      <div class="slider-group">
+        <label>Offset Y:</label>
+        <input type="range" id="adj-y" min="-2.0" max="2.0" step="0.1" value="0">
+      </div>
+      <div class="slider-group">
+        <label>Offset Z:</label>
+        <input type="range" id="adj-z" min="-2.0" max="2.0" step="0.1" value="0">
+      </div>
+    </div>
+  </div>
+  <video id="webcam" autoplay playsinline loop muted></video>
+  <div id="canvas-container"></div>
+</body>
+
+</html>
