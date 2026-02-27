@@ -219,10 +219,12 @@ export class PoseBoxModel {
 
         if (this.virtualFrame) {
             this.virtualFrame.visible = this.mode === 'direct';
+            // 仮想枠も同様にZ移動させることで、パースが効いて大きさが変わる
+            this.virtualFrame.position.z = this.directDepthOffset;
         }
         if (this.videoPlane) {
             this.videoPlane.visible = this.mode === 'direct';
-            // Zオフセット（仮想座標基準）
+            // ビデオプレーンを枠のわずかに後ろに配置
             this.videoPlane.position.z = this.directDepthOffset - 0.01;
         }
 
@@ -299,8 +301,8 @@ export class PoseBoxModel {
             pNose = new THREE.Vector3((nNose.x - 0.5) * width, (0.5 - nNose.y) * height + 1.5, -nose.z * this.scaleFactor + this.directDepthOffset);
             const nLEar = normalizedLandmarks[7];
             const nREar = normalizedLandmarks[8];
-            const pLEar = new THREE.Vector3((nLEar.x - 0.5) * width, (0.5 - nLEar.y) * height + 1.5, 0);
-            const pREar = new THREE.Vector3((nREar.x - 0.5) * width, (0.5 - nREar.y) * height + 1.5, 0);
+            const pLEar = new THREE.Vector3((nLEar.x - 0.5) * width, (0.5 - nLEar.y) * height + 1.5, this.directDepthOffset);
+            const pREar = new THREE.Vector3((nREar.x - 0.5) * width, (0.5 - nREar.y) * height + 1.5, this.directDepthOffset);
             headSize = pLEar.distanceTo(pREar) * 1.5 * this.headScale * this.scaleFactor;
         }
 
