@@ -61,6 +61,7 @@ async function main() {
         // 2. UIイベントの設定
         btnWebcam?.addEventListener('click', async () => {
             await poseProcessor.startCamera();
+            boxModel.mirrored = true;
             videoControls.style.display = 'none';
             btnWebcam.classList.add('active');
             document.querySelector('.file-label')?.classList.remove('active');
@@ -70,6 +71,7 @@ async function main() {
             const file = (e.target as HTMLInputElement).files?.[0];
             if (file) {
                 await poseProcessor.setVideoSource(file);
+                boxModel.mirrored = false;
                 videoControls.style.display = 'block';
                 if (btnPlayPause) btnPlayPause.innerText = 'Pause';
                 btnWebcam?.classList.remove('active');
@@ -172,6 +174,8 @@ async function main() {
         });
 
         const degToRad = (deg: number) => deg * (Math.PI / 180);
+        boxModel.adjRoll = degToRad(2); // 右を上げる補正に修正
+
         sliderRoll?.addEventListener('input', (e) => {
             boxModel.adjRoll = degToRad(parseFloat((e.target as HTMLInputElement).value));
         });
@@ -213,7 +217,7 @@ async function main() {
                 scale: 2.5,
                 headScale: 0.33,
                 brightness: 1.0,
-                roll: 0,
+                roll: 2, // 右を上げる補正
                 pitch: 0,
                 x: 0, y: 0, z: 0,
                 directDepth: 0,
@@ -225,8 +229,8 @@ async function main() {
             boxModel.headScale = defaults.headScale;
             boxModel.brightness = defaults.brightness;
             boxModel.directDepthOffset = defaults.directDepth;
-            boxModel.adjRoll = defaults.roll;
-            boxModel.adjPitch = defaults.pitch;
+            boxModel.adjRoll = degToRad(defaults.roll);
+            boxModel.adjPitch = degToRad(defaults.pitch);
             boxModel.offsetX = defaults.x;
             boxModel.offsetY = defaults.y;
             boxModel.offsetZ = defaults.z;

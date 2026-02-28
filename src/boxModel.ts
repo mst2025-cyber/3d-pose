@@ -30,6 +30,7 @@ export class PoseBoxModel {
     private _brightness: number = 1.0;
     public mode: 'centroid' | 'direct' = 'centroid';
     public directDepthOffset: number = 0;
+    public mirrored: boolean = true;
     private _videoOpacity: number = 0.5;
 
     private virtualFrame: THREE.LineSegments | null = null;
@@ -243,6 +244,12 @@ export class PoseBoxModel {
                 const e = worldLandmarks[conn.end];
                 p1 = new THREE.Vector3(s.x, -s.y, -s.z);
                 p2 = new THREE.Vector3(e.x, -e.y, -e.z);
+
+                if (this.mirrored) {
+                    p1.x *= -1;
+                    p2.x *= -1;
+                }
+
                 p1.applyEuler(euler).multiplyScalar(this.scaleFactor).add(offset);
                 p2.applyEuler(euler).multiplyScalar(this.scaleFactor).add(offset);
             } else {
@@ -252,9 +259,12 @@ export class PoseBoxModel {
                 const we = worldLandmarks[conn.end];
 
                 // ダイレクトマッピング: 正規化座標 (0-1) を仮想フレーム (4x2.25) 内に配置
-                // X方向の反転を修正 (s.x - 0.5) に変更
-                p1 = new THREE.Vector3((s.x - 0.5) * width, (0.5 - s.y) * height + 1.5, -ws.z * this.scaleFactor + this.directDepthOffset);
-                p2 = new THREE.Vector3((e.x - 0.5) * width, (0.5 - e.y) * height + 1.5, -we.z * this.scaleFactor + this.directDepthOffset);
+                // ミラーリング対応
+                const x1 = this.mirrored ? (0.5 - s.x) : (s.x - 0.5);
+                const x2 = this.mirrored ? (0.5 - e.x) : (e.x - 0.5);
+
+                p1 = new THREE.Vector3(x1 * width, (0.5 - s.y) * height + 1.5, -ws.z * this.scaleFactor + this.directDepthOffset);
+                p2 = new THREE.Vector3(x2 * width, (0.5 - e.y) * height + 1.5, -we.z * this.scaleFactor + this.directDepthOffset);
             }
 
             // 中心位置の設定
@@ -292,17 +302,21 @@ export class PoseBoxModel {
 
         if (this.mode === 'centroid') {
             pNose = new THREE.Vector3(nose.x, -nose.y, -nose.z);
+            if (this.mirrored) pNose.x *= -1;
             pNose.applyEuler(euler).multiplyScalar(this.scaleFactor).add(offset);
             const pLEar = new THREE.Vector3(leftEar.x, -leftEar.y, -leftEar.z);
             const pREar = new THREE.Vector3(rightEar.x, -rightEar.y, -rightEar.z);
             headSize = pLEar.distanceTo(pREar) * 1.2 * this.scaleFactor * this.headScale;
         } else {
             // X方向の反転を修正
-            pNose = new THREE.Vector3((nNose.x - 0.5) * width, (0.5 - nNose.y) * height + 1.5, -nose.z * this.scaleFactor + this.directDepthOffset);
+            const nx = this.mirrored ? (0.5 - nNose.x) : (nNose.x - 0.5);
+            pNose = new THREE.Vector3(nx * width, (0.5 - nNose.y) * height + 1.5, -nose.z * this.scaleFactor + this.directDepthOffset);
             const nLEar = normalizedLandmarks[7];
             const nREar = normalizedLandmarks[8];
-            const pLEar = new THREE.Vector3((nLEar.x - 0.5) * width, (0.5 - nLEar.y) * height + 1.5, this.directDepthOffset);
-            const pREar = new THREE.Vector3((nREar.x - 0.5) * width, (0.5 - nREar.y) * height + 1.5, this.directDepthOffset);
+            const xL = this.mirrored ? (0.5 - nLEar.x) : (nLEar.x - 0.5);
+            const xR = this.mirrored ? (0.5 - nREar.x) : (nREar.x - 0.5);
+            const pLEar = new THREE.Vector3(xL * width, (0.5 - nLEar.y) * height + 1.5, this.directDepthOffset);
+            const pREar = new THREE.Vector3(xR * width, (0.5 - nREar.y) * height + 1.5, this.directDepthOffset);
             headSize = pLEar.distanceTo(pREar) * 1.5 * this.headScale * this.scaleFactor;
         }
 
