@@ -1,6 +1,7 @@
 import { PoseScene } from './scene';
 import { PoseProcessor } from './pose';
 import { PoseBoxModel } from './boxModel';
+import { FrameCaptureManager } from './capture';
 
 async function main() {
     const statusEl = document.getElementById('status');
@@ -27,6 +28,7 @@ async function main() {
     const valB = document.getElementById('point-b-val') as HTMLSpanElement;
 
     // キャリブレーションスライダー
+    const sliderSmooth = document.getElementById('adj-smooth') as HTMLInputElement;
     const sliderRoll = document.getElementById('adj-roll') as HTMLInputElement;
     const sliderPitch = document.getElementById('adj-pitch') as HTMLInputElement;
     const sliderScale = document.getElementById('adj-scale') as HTMLInputElement;
@@ -77,22 +79,105 @@ async function main() {
                 btnWebcam?.classList.remove('active');
                 const label = document.querySelector('.file-label');
                 if (label) label.classList.add('active');
+                // ダウンロードリンクが残っていればリセット
+                const dl = document.getElementById('capture-download') as HTMLAnchorElement;
+                if (dl) dl.style.display = 'none';
             }
         });
 
+        // -------- Capture セットアップ --------
+        const captureCanvas = poseScene.renderer.domElement;
+        const captureManager = new FrameCaptureManager(captureCanvas, videoEl);
+
+        const btnCaptureStart = document.getElementById('btn-capture-start') as HTMLButtonElement;
+        const btnCaptureStop = document.getElementById('btn-capture-stop') as HTMLButtonElement;
+        const captureProgress = document.getElementById('capture-progress') as HTMLDivElement;
+        const captureDownload = document.getElementById('capture-download') as HTMLAnchorElement;
+
+        btnCaptureStart?.addEventListener('click', async () => {
+            // 引数の決定：A-B区間 または動画全体
+            const startTime = pointA ?? 0;
+            const endTime = pointB ?? videoEl.duration ?? 0;
+            if (endTime <= startTime) { alert('Invalid range'); return; }
+
+            // キャプチャ中は動画を一時停止
+            videoEl.pause();
+            if (btnPlayPause) btnPlayPause.innerText = 'Play';
+
+            btnCaptureStart.style.display = 'none';
+            btnCaptureStop.style.display = '';
+            captureProgress.style.display = 'block';
+            captureDownload.style.display = 'none';
+            captureProgress.innerText = 'Preparing...';
+
+            await captureManager.startCapture(
+                { startTime, endTime, fps: 30 },
+                {
+                    onRender: (videoTimeMs) => {
+                        // ポーズ推定 + レンダリング
+                        const results = poseProcessor.estimate(videoTimeMs);
+                        if (results?.worldLandmarks?.length && results?.landmarks?.length) {
+                            boxModel.updateVideoSource(videoEl);
+                            boxModel.update(results.worldLandmarks[0], results.landmarks[0]);
+                        }
+                        poseScene.render();
+                    },
+                    onProgress: (frame, total) => {
+                        captureProgress.innerText = `${frame} / ${total} frames`;
+                    },
+                    onComplete: (blob) => {
+                        const url = URL.createObjectURL(blob);
+                        captureDownload.href = url;
+                        captureDownload.style.display = 'block';
+                        captureProgress.innerText = '✅ Complete!';
+                        btnCaptureStop.style.display = 'none';
+                        btnCaptureStart.style.display = '';
+                    },
+                    onError: (err) => {
+                        captureProgress.innerText = `❌ ${err.message}`;
+                        btnCaptureStop.style.display = 'none';
+                        btnCaptureStart.style.display = '';
+                    },
+                }
+            );
+        });
+
+        btnCaptureStop?.addEventListener('click', () => {
+            captureManager.stopCapture();
+            btnCaptureStop.style.display = 'none';
+            btnCaptureStart.style.display = '';
+            captureProgress.innerText = '⏹ Stopped';
+        });
+        // ---------------------------------
+
         const btnModeCentroid = document.getElementById('btn-mode-centroid') as HTMLButtonElement;
         const btnModeDirect = document.getElementById('btn-mode-direct') as HTMLButtonElement;
+        const gridToggleRow = document.getElementById('grid-toggle-row') as HTMLDivElement;
+        const btnToggleGrid = document.getElementById('btn-toggle-grid') as HTMLButtonElement;
 
         btnModeCentroid?.addEventListener('click', () => {
             boxModel.mode = 'centroid';
             btnModeCentroid.classList.add('active');
             btnModeDirect.classList.remove('active');
+            // グリッドトグル行を隠し、グリッドをリセット
+            gridToggleRow.style.display = 'none';
+            boxModel.showFloorGrid = false;
+            btnToggleGrid.innerText = 'Grid: OFF';
+            btnToggleGrid.classList.remove('active');
         });
 
         btnModeDirect?.addEventListener('click', () => {
             boxModel.mode = 'direct';
             btnModeDirect.classList.add('active');
             btnModeCentroid.classList.remove('active');
+            // グリッドトグル行を表示
+            gridToggleRow.style.display = 'flex';
+        });
+
+        btnToggleGrid?.addEventListener('click', () => {
+            boxModel.showFloorGrid = !boxModel.showFloorGrid;
+            btnToggleGrid.innerText = boxModel.showFloorGrid ? 'Grid: ON' : 'Grid: OFF';
+            btnToggleGrid.classList.toggle('active', boxModel.showFloorGrid);
         });
 
         btnPlayPause?.addEventListener('click', () => {
@@ -176,6 +261,9 @@ async function main() {
         const degToRad = (deg: number) => deg * (Math.PI / 180);
         boxModel.adjRoll = degToRad(2); // 右を上げる補正に修正
 
+        sliderSmooth?.addEventListener('input', (e) => {
+            poseProcessor.smoothAlpha = parseFloat((e.target as HTMLInputElement).value);
+        });
         sliderRoll?.addEventListener('input', (e) => {
             boxModel.adjRoll = degToRad(parseFloat((e.target as HTMLInputElement).value));
         });
@@ -214,10 +302,11 @@ async function main() {
         btnResetCalibration?.addEventListener('click', () => {
             // デフォルト値
             const defaults = {
+                smooth: 0.35,
                 scale: 2.5,
                 headScale: 0.33,
                 brightness: 1.0,
-                roll: 2, // 右を上げる補正
+                roll: 2,
                 pitch: 0,
                 x: 0, y: 0, z: 0,
                 directDepth: 0,
@@ -225,6 +314,7 @@ async function main() {
             };
 
             // モデルの更新
+            poseProcessor.smoothAlpha = defaults.smooth;
             boxModel.scaleFactor = defaults.scale;
             boxModel.headScale = defaults.headScale;
             boxModel.brightness = defaults.brightness;
@@ -237,6 +327,7 @@ async function main() {
             boxModel.videoOpacity = defaults.videoOpacity;
 
             // UIの更新
+            if (sliderSmooth) sliderSmooth.value = defaults.smooth.toString();
             if (sliderScale) sliderScale.value = defaults.scale.toString();
             if (sliderHeadScale) sliderHeadScale.value = defaults.headScale.toString();
             if (sliderBrightness) sliderBrightness.value = defaults.brightness.toString();
@@ -262,10 +353,13 @@ async function main() {
                 videoEl.currentTime = pointA;
             }
 
-            const results = poseProcessor.estimate(performance.now());
-            if (results && results.worldLandmarks?.length && results.landmarks?.length) {
-                boxModel.updateVideoSource(videoEl);
-                boxModel.update(results.worldLandmarks[0], results.landmarks[0]);
+            // 2. ポーズ推定（キャプチャ中はキャプチャ側で行うためスキップ）
+            if (!captureManager.capturing) {
+                const results = poseProcessor.estimate(performance.now());
+                if (results && results.worldLandmarks?.length && results.landmarks?.length) {
+                    boxModel.updateVideoSource(videoEl);
+                    boxModel.update(results.worldLandmarks[0], results.landmarks[0]);
+                }
             }
 
             poseScene.render();

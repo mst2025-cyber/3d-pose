@@ -9,8 +9,9 @@
         "preview": "vite preview"
     },
     "dependencies": {
+        "@mediapipe/tasks-vision": "0.10.9",
         "three": "0.160.0",
-        "@mediapipe/tasks-vision": "0.10.9"
+        "webm-muxer": "^5.1.4"
     },
     "devDependencies": {
         "@types/three": "0.160.0",

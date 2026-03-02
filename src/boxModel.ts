@@ -32,10 +32,12 @@ export class PoseBoxModel {
     public directDepthOffset: number = 0;
     public mirrored: boolean = true;
     private _videoOpacity: number = 0.5;
+    public showFloorGrid: boolean = false;
 
     private virtualFrame: THREE.LineSegments | null = null;
     private videoPlane: THREE.Mesh | null = null;
     private videoTexture: THREE.VideoTexture | null = null;
+    private floorGrid: THREE.GridHelper | null = null;
     private frameAspectRatio: number = 16 / 9;
 
     public get brightness(): number {
@@ -116,6 +118,7 @@ export class PoseBoxModel {
         this.initHead();
         this.initVirtualFrame();
         this.initVideoPlane();
+        this.initFloorGrid();
     }
 
     private createMultiMaterial(side: 'left' | 'right' | 'center') {
@@ -163,6 +166,20 @@ export class PoseBoxModel {
         this.headBox.visible = false;
         this.headBox.castShadow = true;
         this.scene.add(this.headBox);
+    }
+
+    private initFloorGrid() {
+        // XZ平面（Y=0）にDirect Map専用の床グリッドを配置
+        const grid = new THREE.GridHelper(10, 20, 0x00f2ff, 0x003344);
+        const mats = Array.isArray(grid.material) ? grid.material : [grid.material];
+        mats.forEach(m => {
+            m.transparent = true;
+            m.opacity = 0.18;
+        });
+        grid.position.set(0, 0, 0);
+        grid.visible = false;
+        this.scene.add(grid);
+        this.floorGrid = grid;
     }
 
     private initVideoPlane() {
@@ -227,6 +244,9 @@ export class PoseBoxModel {
             this.videoPlane.visible = this.mode === 'direct';
             // ビデオプレーンを枠のわずかに後ろに配置
             this.videoPlane.position.z = this.directDepthOffset - 0.01;
+        }
+        if (this.floorGrid) {
+            this.floorGrid.visible = this.mode === 'direct' && this.showFloorGrid;
         }
 
         const width = 4;

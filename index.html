@@ -48,9 +48,8 @@
       border: 1px solid var(--glass-border);
       padding: 10px;
       z-index: 10;
-      overflow-y: hidden;
-      /* Disable scroll to avoid taking space, or make it auto */
-      scrollbar-width: none;
+      overflow-y: auto;
+      scrollbar-width: thin;
       display: flex;
       flex-direction: column;
       gap: 6px;
@@ -58,7 +57,7 @@
     }
 
     #sidebar::-webkit-scrollbar {
-      display: none;
+      width: 4px;
     }
 
     h1 {
@@ -227,14 +226,7 @@
       <div id="status" class="status-badge">System Initializing...</div>
     </div>
 
-    <div class="control-group">
-      <span class="section-title">View Mode</span>
-      <div class="btn-row">
-        <button id="btn-mode-centroid" class="active">Centroid</button>
-        <button id="btn-mode-direct">Direct Map</button>
-      </div>
-    </div>
-
+    <!-- 1. Source Select -->
     <div class="control-group">
       <span class="section-title">Source Select</span>
       <div class="btn-row">
@@ -244,50 +236,26 @@
       </div>
     </div>
 
-    <div id="video-controls" style="display: none;" class="control-group">
-      <span class="section-title">Video Analysis</span>
-      <div class="btn-row" style="margin-bottom: 15px;">
-        <button id="btn-play-pause">Pause</button>
-        <div id="video-time" style="font-size: 0.75rem; align-self: center; font-family: monospace;">00:00 / 00:00</div>
+    <!-- 2. View Mode -->
+    <div class="control-group">
+      <span class="section-title">View Mode</span>
+      <div class="btn-row">
+        <button id="btn-mode-centroid" class="active">Centroid</button>
+        <button id="btn-mode-direct">Direct Map</button>
       </div>
-
-      <div class="slider-item">
-        <input type="range" id="video-seek" min="0" max="100" value="0" step="0.1">
-      </div>
-
-      <div class="slider-item">
-        <div class="slider-header">
-          <span id="speed-label" class="slider-label">Speed: 1.0x</span>
-        </div>
-        <input type="range" id="video-speed" min="0" max="1" value="1" step="0.01">
-      </div>
-
-      <div class="btn-row" id="frame-step-controls">
-        <button id="btn-step-back">Prev</button>
-        <button id="btn-step">Next</button>
-      </div>
-
-      <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
-        <span class="section-title">A-B Loop</span>
-        <div class="btn-row">
-          <button id="btn-set-a">Set A</button>
-          <button id="btn-set-b">Set B</button>
-        </div>
-        <div class="ab-display">
-          <span>A: <span id="point-a-val">--:--</span></span>
-          <span id="ab-status-text" style="font-weight: bold;">LOOP OFF</span>
-          <span>B: <span id="point-b-val">--:--</span></span>
-        </div>
-        <div class="btn-row" style="margin-top: 6px;">
-          <button id="btn-toggle-repeat">Repeat</button>
-          <button id="btn-clear-ab">Clear</button>
-        </div>
+      <div id="grid-toggle-row" class="btn-row" style="display:none; margin-top:4px;">
+        <button id="btn-toggle-grid">Grid: OFF</button>
       </div>
     </div>
 
+    <!-- 3. Calibration -->
     <div class="control-group">
       <span class="section-title">Calibration</span>
 
+      <div class="slider-item">
+        <span class="slider-label">Smoothing</span>
+        <input type="range" id="adj-smooth" min="0.05" max="1.0" step="0.05" value="0.35">
+      </div>
       <div class="slider-item">
         <span class="slider-label">Global Scale</span>
         <input type="range" id="adj-scale" min="0.5" max="5.0" step="0.1" value="2.5">
@@ -335,6 +303,62 @@
       <button id="btn-reset-calibration"
         style="margin-top: 6px; width: 100%; border-color: var(--accent); color: var(--accent); background: rgba(255, 0, 200, 0.05); font-size: 0.7rem; padding: 4px;">Reset
         to Defaults</button>
+    </div>
+
+    <!-- 4. Video Analysis (conditional) -->
+    <div id="video-controls" style="display: none;" class="control-group">
+      <span class="section-title">Video Analysis</span>
+      <div class="btn-row" style="margin-bottom: 15px;">
+        <button id="btn-play-pause">Pause</button>
+        <div id="video-time" style="font-size: 0.75rem; align-self: center; font-family: monospace;">00:00 / 00:00</div>
+      </div>
+
+      <div class="slider-item">
+        <input type="range" id="video-seek" min="0" max="100" value="0" step="0.1">
+      </div>
+
+      <div class="slider-item">
+        <div class="slider-header">
+          <span id="speed-label" class="slider-label">Speed: 1.0x</span>
+        </div>
+        <input type="range" id="video-speed" min="0" max="1" value="1" step="0.01">
+      </div>
+
+      <div class="btn-row" id="frame-step-controls">
+        <button id="btn-step-back">Prev</button>
+        <button id="btn-step">Next</button>
+      </div>
+
+      <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
+        <span class="section-title">A-B Loop</span>
+        <div class="btn-row">
+          <button id="btn-set-a">Set A</button>
+          <button id="btn-set-b">Set B</button>
+        </div>
+        <div class="ab-display">
+          <span>A: <span id="point-a-val">--:--</span></span>
+          <span id="ab-status-text" style="font-weight: bold;">LOOP OFF</span>
+          <span>B: <span id="point-b-val">--:--</span></span>
+        </div>
+        <div class="btn-row" style="margin-top: 6px;">
+          <button id="btn-toggle-repeat">Repeat</button>
+          <button id="btn-clear-ab">Clear</button>
+        </div>
+      </div>
+
+      <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
+        <span class="section-title">3D Capture</span>
+        <div class="btn-row">
+          <button id="btn-capture-start">&#9210; Capture</button>
+          <button id="btn-capture-stop" style="display:none;">&#9632; Stop</button>
+        </div>
+        <div id="capture-progress"
+          style="display:none; font-size:0.7rem; font-family:monospace; color:var(--primary); margin-top:4px; text-align:center;">
+          0 / 0 frames</div>
+        <a id="capture-download"
+          style="display:none; margin-top:6px; width:100%; text-align:center; padding:5px; background:rgba(0,242,255,0.1); border:1px solid var(--primary); border-radius:6px; color:var(--primary); font-size:0.72rem; font-weight:600; cursor:pointer; text-decoration:none;"
+          download="pose_capture.webm">&#11015; Download WebM</a>
+      </div>
     </div>
   </div>
 

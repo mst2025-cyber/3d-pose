@@ -44,10 +44,6 @@ export class PoseScene {
         directionalLight.position.set(5, 5, 5);
         this.scene.add(directionalLight);
 
-        // グリッドヘルパー（空間把握用）
-        const gridHelper = new THREE.GridHelper(10, 10, 0x444444, 0x222222);
-        this.scene.add(gridHelper);
-
         // ウィンドウリサイズ対応
         window.addEventListener('resize', this.onWindowResize.bind(this));
     }
