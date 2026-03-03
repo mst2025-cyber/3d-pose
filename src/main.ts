@@ -113,7 +113,7 @@ async function main() {
             await captureManager.startCapture(
                 { startTime, endTime, fps: 30 },
                 {
-                    onRender: (videoTimeMs) => {
+                    onRender: async (videoTimeMs) => {
                         // ポーズ推定 + レンダリング
                         const results = poseProcessor.estimate(videoTimeMs);
                         if (results?.worldLandmarks?.length && results?.landmarks?.length) {
