@@ -101,6 +101,18 @@ export class PoseProcessor {
     }
 
     /**
+     * 強制的にモデルを再初期化する。
+     * キャプチャ開始時など、内部タイムスタンプをリセットしたい場合に使用。
+     */
+    public async reinit() {
+        if (this.poseLandmarker) {
+            this.poseLandmarker.close();
+            this.poseLandmarker = null;
+        }
+        await this.init();
+    }
+
+    /**
      * ウェブカメラの起動
      */
     public async startCamera() {

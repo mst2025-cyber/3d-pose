@@ -1,3 +1,4 @@
+// src/cylinderModel.ts
 import * as THREE from 'three';
 import { Landmark } from '@mediapipe/tasks-vision';
 
@@ -12,14 +13,15 @@ interface BoneConnection {
 }
 
 /**
- * MediaPipeの関節（Landmark）情報をThree.jsのMesh（Box）に変換して管理するクラス
+ * MediaPipeの関節（Landmark）情報をThree.jsのMesh（Cylinder）に変換して管理するクラス
+ * PoseBoxModel と同様の API を提供します。
  */
-export class PoseBoxModel {
+export class PoseCylinderModel {
     private scene: THREE.Scene;
-    private boxes: Map<string, THREE.Mesh> = new Map();
+    private cylinders: Map<string, THREE.Mesh> = new Map();
     private headBox: THREE.Mesh | null = null;
 
-    // アジャスト用パラメータ
+    // 調整パラメータ（BoxModel と同様）
     public scaleFactor: number = 2.5;
     public adjRoll: number = 0;
     public adjPitch: number = 0;
@@ -42,60 +44,17 @@ export class PoseBoxModel {
     private floorGrid: THREE.GridHelper | null = null;
     private frameAspectRatio: number = 16 / 9;
 
-    public get brightness(): number {
-        return this._brightness;
-    }
+    public get brightness(): number { return this._brightness; }
+    public set brightness(val: number) { this._brightness = val; this.updateMaterialIntensity(); }
+    public get videoOpacity(): number { return this._videoOpacity; }
+    public set videoOpacity(val: number) { this._videoOpacity = val; if (this.videoPlane) { (this.videoPlane.material as THREE.MeshBasicMaterial).opacity = val; } }
 
-    public set brightness(val: number) {
-        this._brightness = val;
-        this.updateMaterialIntensity();
-    }
-
-    public get videoOpacity(): number {
-        return this._videoOpacity;
-    }
-
-    public set videoOpacity(val: number) {
-        this._videoOpacity = val;
-        if (this.videoPlane) {
-            (this.videoPlane.material as THREE.MeshBasicMaterial).opacity = val;
-        }
-    }
-
-    private updateMaterialIntensity() {
-        const updateMesh = (mesh: THREE.Mesh | null) => {
-            if (!mesh) return;
-            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-            materials.forEach((mat: any, idx) => {
-                const baseIntensity = mat.userData.baseEmissiveIntensity || (idx === 4 ? 0.4 : 0.1);
-                mat.emissiveIntensity = baseIntensity * this._brightness;
-            });
-        };
-
-        this.boxes.forEach(mesh => updateMesh(mesh));
-        updateMesh(this.headBox);
-    }
-
-    // カラーパレット
     private colors = {
-        right: {
-            main: 0x00f2ff, // Cyan
-            front: 0x00f2ff,
-            back: 0x0055aa,
-        },
-        left: {
-            main: 0xff00c8, // Accent Pink/Purple
-            front: 0xff00c8,
-            back: 0x880066,
-        },
-        center: {
-            main: 0x7000ff, // Secondary Purple
-            front: 0x7000ff,
-            back: 0x330088,
-        }
+        right: { main: 0x00f2ff, front: 0x00f2ff, back: 0x0055aa },
+        left: { main: 0xff00c8, front: 0xff00c8, back: 0x880066 },
+        center: { main: 0x7000ff, front: 0x7000ff, back: 0x330088 }
     };
 
-    // 描画する部位の定義（MediaPipe Landmark Index）
     private connections: BoneConnection[] = [
         { start: 11, end: 12, name: 'shoulders', side: 'center' },
         { start: 11, end: 23, name: 'left_torso', side: 'left' },
@@ -113,7 +72,7 @@ export class PoseBoxModel {
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
-        this.initBoxes();
+        this.initCylinders();
         this.initHead();
         this.initVirtualFrame();
         this.initVideoPlane();
@@ -122,38 +81,28 @@ export class PoseBoxModel {
 
     private createMultiMaterial(side: 'left' | 'right' | 'center') {
         const c = this.colors[side];
-
-        // Three.js BoxGeometry materials order: x+, x-, y+, y-, z+, z-
-        // すべての面に emissive を設定しないと emissiveIntensity が効かないため、
-        // 前面(Front)以外にもベースとなる色を設定します。
-
         const materials = [
             new THREE.MeshStandardMaterial({ color: c.main, emissive: c.main, emissiveIntensity: 0.1, metalness: 0.8, roughness: 0.2 }), // px
             new THREE.MeshStandardMaterial({ color: c.main, emissive: c.main, emissiveIntensity: 0.1, metalness: 0.8, roughness: 0.2 }), // nx
             new THREE.MeshStandardMaterial({ color: c.main, emissive: c.main, emissiveIntensity: 0.1, metalness: 0.8, roughness: 0.2 }), // py
             new THREE.MeshStandardMaterial({ color: c.main, emissive: c.main, emissiveIntensity: 0.1, metalness: 0.8, roughness: 0.2 }), // ny
             new THREE.MeshStandardMaterial({ color: c.front, emissive: c.front, emissiveIntensity: 0.3, metalness: 0.8, roughness: 0.2 }), // pz (Front)
-            new THREE.MeshStandardMaterial({ color: c.back, emissive: c.back, emissiveIntensity: 0.05, metalness: 0.8, roughness: 0.2 }), // nz (Back)
+            new THREE.MeshStandardMaterial({ color: c.back, emissive: c.back, emissiveIntensity: 0.05, metalness: 0.8, roughness: 0.2 }) // nz (Back)
         ];
-
-        // 各マテリアルのベースemissiveIntensityを保存
-        materials.forEach(mat => {
-            mat.userData.baseEmissiveIntensity = mat.emissiveIntensity;
-        });
-
+        materials.forEach(m => { (m as any).userData.baseEmissiveIntensity = m.emissiveIntensity; });
         return materials;
     }
 
-    private initBoxes() {
+    private initCylinders() {
         this.connections.forEach(conn => {
-            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const geometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
             const materials = this.createMultiMaterial(conn.side);
             const mesh = new THREE.Mesh(geometry, materials);
             mesh.name = conn.name;
             mesh.visible = false;
             mesh.castShadow = true;
             this.scene.add(mesh);
-            this.boxes.set(conn.name, mesh);
+            this.cylinders.set(conn.name, mesh);
         });
     }
 
@@ -170,13 +119,9 @@ export class PoseBoxModel {
     }
 
     private initFloorGrid() {
-        // XZ平面（Y=0）にDirect Map専用の床グリッドを配置
         const grid = new THREE.GridHelper(10, 20, 0x00f2ff, 0x003344);
         const mats = Array.isArray(grid.material) ? grid.material : [grid.material];
-        mats.forEach(m => {
-            m.transparent = true;
-            m.opacity = 0.18;
-        });
+        mats.forEach(m => { m.transparent = true; m.opacity = 0.18; });
         grid.position.set(0, 0, 0);
         grid.visible = false;
         this.scene.add(grid);
@@ -187,13 +132,9 @@ export class PoseBoxModel {
         const width = 4;
         const height = width / this.frameAspectRatio;
         const geometry = new THREE.PlaneGeometry(width, height);
-        const material = new THREE.MeshBasicMaterial({
-            transparent: true,
-            opacity: this._videoOpacity,
-            side: THREE.DoubleSide
-        });
+        const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: this._videoOpacity, side: THREE.DoubleSide });
         this.videoPlane = new THREE.Mesh(geometry, material);
-        this.videoPlane.position.set(0, 1.5, -0.01); // Slightly behind the frame
+        this.videoPlane.position.set(0, 1.5, -0.01);
         this.videoPlane.visible = false;
         this.scene.add(this.videoPlane);
     }
@@ -216,6 +157,20 @@ export class PoseBoxModel {
         this.scene.add(this.virtualFrame);
     }
 
+    private updateMaterialIntensity() {
+        const updateMesh = (mesh: THREE.Mesh | null) => {
+            if (!mesh) return;
+            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            materials.forEach((m: any) => {
+                if (m.emissiveIntensity !== undefined) {
+                    m.emissiveIntensity = (m.userData.baseEmissiveIntensity || 0.1) * this._brightness;
+                }
+            });
+        };
+        this.cylinders.forEach(m => updateMesh(m));
+        updateMesh(this.headBox);
+    }
+
     public updateVideoSource(video: HTMLVideoElement) {
         if (!this.videoTexture) {
             this.videoTexture = new THREE.VideoTexture(video);
@@ -228,49 +183,32 @@ export class PoseBoxModel {
 
     public update(worldLandmarks: Landmark[], normalizedLandmarks: Landmark[]) {
         if (!worldLandmarks || worldLandmarks.length === 0) return;
-
-        // 初期ロード時やリセット時に確実に明るさを反映させる
         this.updateMaterialIntensity();
-
-        // アジャスト用回転と位置の共通化
         const euler = new THREE.Euler(this.adjPitch, 0, this.adjRoll);
         const offset = new THREE.Vector3(this.offsetX, this.offsetY, this.offsetZ);
-
         if (this.virtualFrame) {
             this.virtualFrame.visible = this.mode === 'direct';
-            // 仮想枠も同様にZ移動させることで、パースが効いて大きさが変わる
             this.virtualFrame.position.z = this.directDepthOffset;
         }
         if (this.videoPlane) {
             this.videoPlane.visible = this.mode === 'direct';
-            // ビデオプレーンを枠のわずかに後ろに配置
             this.videoPlane.position.z = this.directDepthOffset - 0.01;
         }
         if (this.floorGrid) {
             this.floorGrid.visible = this.mode === 'direct' && this.showFloorGrid;
         }
-
         const width = 4;
         const height = width / this.frameAspectRatio;
-
         this.connections.forEach(conn => {
-            const mesh = this.boxes.get(conn.name);
+            const mesh = this.cylinders.get(conn.name);
             if (!mesh) return;
-
-            let p1: THREE.Vector3;
-            let p2: THREE.Vector3;
-
+            let p1: THREE.Vector3, p2: THREE.Vector3;
             if (this.mode === 'centroid') {
                 const s = worldLandmarks[conn.start];
                 const e = worldLandmarks[conn.end];
                 p1 = new THREE.Vector3(s.x, -s.y, -s.z);
                 p2 = new THREE.Vector3(e.x, -e.y, -e.z);
-
-                if (this.mirrored) {
-                    p1.x *= -1;
-                    p2.x *= -1;
-                }
-
+                if (this.mirrored) { p1.x *= -1; p2.x *= -1; }
                 p1.applyEuler(euler).multiplyScalar(this.scaleFactor).add(offset);
                 p2.applyEuler(euler).multiplyScalar(this.scaleFactor).add(offset);
             } else {
@@ -278,39 +216,26 @@ export class PoseBoxModel {
                 const e = normalizedLandmarks[conn.end];
                 const ws = worldLandmarks[conn.start];
                 const we = worldLandmarks[conn.end];
-
-                // ダイレクトマッピング: 正規化座標 (0-1) を仮想フレーム (4x2.25) 内に配置
-                // ミラーリング対応
                 const x1 = this.mirrored ? (0.5 - s.x) : (s.x - 0.5);
                 const x2 = this.mirrored ? (0.5 - e.x) : (e.x - 0.5);
-
                 p1 = new THREE.Vector3(x1 * width, (0.5 - s.y) * height + 1.5, -ws.z * this.scaleFactor + this.directDepthOffset);
                 p2 = new THREE.Vector3(x2 * width, (0.5 - e.y) * height + 1.5, -we.z * this.scaleFactor + this.directDepthOffset);
             }
-
-            // 中心位置の設定
             const center = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
             mesh.position.copy(center);
-
-            // 方向と長さの計算
             const direction = new THREE.Vector3().subVectors(p2, p1);
             const distance = direction.length() * this.boneLengthScale;
-
-            // スケールに応じた太さの調節 (bodyThickness を使用)
-            const thickness = this.bodyThickness * this.scaleFactor;
-            mesh.scale.set(thickness, thickness, distance);
-
-            // 回転（p2の方向を向かせる）
-            mesh.lookAt(p2);
+            const thickness = this.bodyThickness * this.scaleFactor; // Use bodyThickness instead of headScale
+            // Cylinder default height = 1 along Y axis; we scale Y to half-length because cylinder is centered.
+            mesh.scale.set(thickness, distance / 2, thickness);
+            mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize());
             mesh.visible = true;
         });
-
         this.updateHead(worldLandmarks, normalizedLandmarks, euler, offset, width, height);
     }
 
     private updateHead(worldLandmarks: Landmark[], normalizedLandmarks: Landmark[], euler: THREE.Euler, offset: THREE.Vector3, width: number, height: number) {
         if (!this.headBox) return;
-
         const nose = worldLandmarks[0];
         const nNose = normalizedLandmarks[0];
         const leftEar = worldLandmarks[7];
@@ -357,6 +282,7 @@ export class PoseBoxModel {
 
         this.headBox.position.copy(pHeadCenter);
         this.headBox.scale.set(headSize, headSize, headSize);
+        this.headBox.visible = true;
         this.headBox.visible = true;
     }
 }

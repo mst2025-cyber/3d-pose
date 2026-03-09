@@ -74,25 +74,33 @@ export class FrameCaptureManager {
             framerate: fps,
         });
 
+        console.log(`[Capture] Started: ${totalFrames} frames, ${width}x${height}`);
+
         try {
             for (let i = 0; i < totalFrames && !this.shouldStop; i++) {
                 const targetTime = startTime + i * frameStep;
 
                 // シーク
-                this.video.currentTime = targetTime;
-                await this.waitForSeek();
+                if (this.video.duration !== Infinity) {
+                    this.video.currentTime = targetTime;
+                    await this.waitForSeek();
+                }
 
-                if (encodeError) throw encodeError;
+                if (encodeError) {
+                    console.error("[Capture] Encoder Error during loop:", encodeError);
+                    throw encodeError;
+                }
 
                 // ポーズ推定 + レンダリング（呼び出し元が実施）
                 const virtualTimeMs = Math.round((i * frameUs) / 1000);
                 callbacks.onRender(virtualTimeMs);
 
-                // レンダ完了を待つ
-                await this.nextFrame();
-
-                // canvas フレームをキャプチャして VideoFrame に変換
+                // canvas フレームをキャプチャして VideoFrame に変換 (待ち時間の前に実行)
                 const bitmap = await createImageBitmap(this.canvas, 0, 0, width, height);
+
+                // レンダ完了を待つ (setTimeout で代替して非アクティブタブ対応)
+                await new Promise(resolve => setTimeout(resolve, 10));
+
                 const vf = new VideoFrame(bitmap, {
                     timestamp: i * frameUs,
                     duration: frameUs,
@@ -101,6 +109,7 @@ export class FrameCaptureManager {
                 vf.close();
                 bitmap.close();
 
+                if (i % 10 === 0) console.log(`[Capture] Progress: ${i + 1}/${totalFrames}`);
                 callbacks.onProgress(i + 1, totalFrames);
             }
 
@@ -109,6 +118,7 @@ export class FrameCaptureManager {
 
             muxer.finalize();
             const buffer = (muxer.target as ArrayBufferTarget).buffer;
+            console.log(`[Capture] Finished: ${buffer.byteLength} bytes`);
             const blob = new Blob([buffer], { type: 'video/webm' });
             callbacks.onComplete(blob);
 
@@ -139,7 +149,4 @@ export class FrameCaptureManager {
         });
     }
 
-    private nextFrame(): Promise<void> {
-        return new Promise(resolve => requestAnimationFrame(() => resolve()));
-    }
 }

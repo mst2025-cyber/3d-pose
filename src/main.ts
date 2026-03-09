@@ -1,6 +1,6 @@
 import { PoseScene } from './scene';
 import { PoseProcessor } from './pose';
-import { PoseBoxModel } from './boxModel';
+import { PoseCylinderModel } from './cylinderModel';
 import { FrameCaptureManager } from './capture';
 
 async function main() {
@@ -36,6 +36,8 @@ async function main() {
     const sliderY = document.getElementById('adj-y') as HTMLInputElement;
     const sliderZ = document.getElementById('adj-z') as HTMLInputElement;
     const sliderHeadScale = document.getElementById('adj-head-scale') as HTMLInputElement;
+    const sliderBodyThickness = document.getElementById('adj-body-thickness') as HTMLInputElement;
+    const sliderBoneLength = document.getElementById('adj-bone-length') as HTMLInputElement;
     const sliderDirectDepth = document.getElementById('adj-direct-depth') as HTMLInputElement;
     const sliderVideoOpacity = document.getElementById('adj-video-opacity') as HTMLInputElement;
     const btnResetCalibration = document.getElementById('btn-reset-calibration') as HTMLButtonElement;
@@ -55,7 +57,7 @@ async function main() {
                 statusEl.style.color = status === 'error' ? '#ff4444' : '';
             }
         });
-        const boxModel = new PoseBoxModel(poseScene.scene);
+        const boxModel = new PoseCylinderModel(poseScene.scene);
 
         await poseProcessor.init();
         await poseProcessor.startCamera();
@@ -109,6 +111,17 @@ async function main() {
             captureProgress.style.display = 'block';
             captureDownload.style.display = 'none';
             captureProgress.innerText = 'Preparing...';
+
+            if (videoEl.duration === Infinity) {
+                alert('Webcam capture is not supported. Please use a video file.');
+                btnCaptureStart.style.display = '';
+                btnCaptureStop.style.display = 'none';
+                captureProgress.style.display = 'none';
+                return;
+            }
+
+            console.log("[Capture] Re-initializing Landmarker...");
+            await poseProcessor.reinit();
 
             await captureManager.startCapture(
                 { startTime, endTime, fps: 30 },
@@ -285,6 +298,12 @@ async function main() {
         sliderHeadScale?.addEventListener('input', (e) => {
             boxModel.headScale = parseFloat((e.target as HTMLInputElement).value);
         });
+        sliderBodyThickness?.addEventListener('input', (e) => {
+            boxModel.bodyThickness = parseFloat((e.target as HTMLInputElement).value);
+        });
+        sliderBoneLength?.addEventListener('input', (e) => {
+            boxModel.boneLengthScale = parseFloat((e.target as HTMLInputElement).value);
+        });
 
         sliderDirectDepth?.addEventListener('input', (e) => {
             boxModel.directDepthOffset = parseFloat((e.target as HTMLInputElement).value);
@@ -305,6 +324,8 @@ async function main() {
                 smooth: 0.35,
                 scale: 2.5,
                 headScale: 0.33,
+                bodyThickness: 0.15,
+                boneLength: 1.0,
                 brightness: 1.0,
                 roll: 2,
                 pitch: 0,
@@ -317,6 +338,8 @@ async function main() {
             poseProcessor.smoothAlpha = defaults.smooth;
             boxModel.scaleFactor = defaults.scale;
             boxModel.headScale = defaults.headScale;
+            boxModel.bodyThickness = defaults.bodyThickness;
+            boxModel.boneLengthScale = defaults.boneLength;
             boxModel.brightness = defaults.brightness;
             boxModel.directDepthOffset = defaults.directDepth;
             boxModel.adjRoll = degToRad(defaults.roll);
@@ -330,6 +353,8 @@ async function main() {
             if (sliderSmooth) sliderSmooth.value = defaults.smooth.toString();
             if (sliderScale) sliderScale.value = defaults.scale.toString();
             if (sliderHeadScale) sliderHeadScale.value = defaults.headScale.toString();
+            if (sliderBodyThickness) sliderBodyThickness.value = defaults.bodyThickness.toString();
+            if (sliderBoneLength) sliderBoneLength.value = defaults.boneLength.toString();
             if (sliderBrightness) sliderBrightness.value = defaults.brightness.toString();
             if (sliderRoll) sliderRoll.value = defaults.roll.toString();
             if (sliderPitch) sliderPitch.value = defaults.pitch.toString();

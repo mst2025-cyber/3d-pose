@@ -28,7 +28,7 @@ export class PoseScene {
         this.camera.position.set(0, 1.5, 4); // 人物の中心付近を見下ろす位置
 
         // レンダラーの作成
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(window.devicePixelRatio);
         container.appendChild(this.renderer.domElement);
