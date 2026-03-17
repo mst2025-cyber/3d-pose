@@ -4,140 +4,379 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>3D Pose Boxes - Three.js + MediaPipe</title>
+  <title>3D Pose Analysis - Professional Edition</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --primary: #00f2ff;
+      --secondary: #7000ff;
+      --accent: #ff00c8;
+      --bg-dark: #050505;
+      --glass: rgba(255, 255, 255, 0.05);
+      --glass-border: rgba(255, 255, 255, 0.1);
+      --glass-blur: blur(12px);
+    }
+
     body {
       margin: 0;
       overflow: hidden;
-      background-color: #000;
-      font-family: sans-serif;
+      background-color: var(--bg-dark);
+      font-family: 'Inter', sans-serif;
+      color: #fff;
     }
 
     #canvas-container {
+      position: fixed;
+      top: 0;
+      left: 0;
       width: 100vw;
       height: 100vh;
+      z-index: 1;
     }
 
-    #ui {
+    #sidebar {
       position: absolute;
       top: 10px;
       left: 10px;
-      color: white;
-      z-index: 10;
-      background: rgba(0, 0, 0, 0.7);
+      width: 260px;
+      bottom: 10px;
+      background: var(--glass);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
       padding: 10px;
-      border-radius: 8px;
-      pointer-events: auto;
-      /* Enable interaction */
-      max-height: 90vh;
+      z-index: 10;
       overflow-y: auto;
+      scrollbar-width: thin;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
     }
 
-    .controls {
-      margin-top: 10px;
+    #sidebar::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin: 0;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .status-badge {
+      font-size: 0.75rem;
+      padding: 4px 12px;
+      background: rgba(0, 242, 255, 0.1);
+      border: 1px solid rgba(0, 242, 255, 0.2);
+      border-radius: 100px;
+      color: var(--primary);
+      display: inline-block;
+      margin-top: 8px;
+    }
+
+    .section-title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .control-group {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 10px;
+      padding: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .btn-row {
       display: flex;
-      gap: 10px;
+      gap: 6px;
     }
 
     button,
-    label {
-      padding: 8px 12px;
-      background: #00ff88;
-      color: #000;
-      border: none;
-      border-radius: 4px;
+    .file-label {
+      flex: 1;
+      padding: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      color: white;
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 600;
       cursor: pointer;
-      font-weight: bold;
+      transition: all 0.2s ease;
+      text-align: center;
     }
 
     button:hover,
-    label:hover {
-      background: #00cc6e;
+    .file-label:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: var(--primary);
+      box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+    }
+
+    button.active {
+      background: var(--primary);
+      color: #000;
+      border-color: var(--primary);
     }
 
     input[type="file"] {
       display: none;
     }
 
-    .calibration {
-      margin-top: 15px;
-      padding-top: 10px;
-      border-top: 1px solid rgba(255, 255, 255, 0.3);
-    }
-
-    .slider-group {
+    .slider-item {
       display: flex;
-      flex-direction: column;
-      margin-bottom: 8px;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 2px;
     }
 
-    .slider-group label {
-      background: none;
-      color: white;
-      padding: 0;
-      font-size: 0.8em;
-      margin-bottom: 4px;
+    .slider-label {
+      font-size: 0.65rem;
+      color: rgba(255, 255, 255, 0.7);
+      flex: 0 0 80px;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
     }
 
-    .slider-group input {
-      width: 100%;
+    input[type="range"] {
+      flex: 1;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 1px;
+      appearance: none;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      background: var(--primary);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 0 5px rgba(0, 242, 255, 0.5);
+    }
+
+
+    #video-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 280px;
+      aspect-ratio: 16/9;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      background: #000;
+      z-index: 10;
     }
 
     video {
-      position: absolute;
-      bottom: 10px;
-      right: 10px;
-      width: 320px;
-      height: 180px;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
       transform: scaleX(-1);
-      /* Default mirror for webcam */
-      border: 2px solid white;
-      border-radius: 8px;
-      background: #333;
-      z-index: 10;
+    }
+
+    .ab-display {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      font-family: monospace;
+      margin-top: 10px;
+      color: var(--primary);
+    }
+
+    /* Scrollbar */
+    #sidebar::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    #sidebar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    #sidebar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
     }
   </style>
-  <script type="module" crossorigin src="/assets/index-99xCB-nn.js"></script>
+  <script type="module" crossorigin src="/assets/index-DVif5wu0.js"></script>
 </head>
 
 <body>
-  <div id="ui">
-    <h1>3D Pose Mesh</h1>
-    <p id="status">カメラ起動中...</p>
-    <div class="controls">
-      <button id="btn-webcam">Webcam</button>
-      <label for="video-upload">Upload Video</label>
-      <input type="file" id="video-upload" accept="video/*">
+  <div id="sidebar">
+    <div>
+      <h1>3D POSE ANALYSIS</h1>
+      <div id="status" class="status-badge">System Initializing...</div>
     </div>
-    <div class="calibration">
-      <div class="slider-group">
-        <label>Shoulder (Roll):</label>
-        <input type="range" id="adj-roll" min="-45" max="45" value="0">
+
+    <!-- 1. Source Select -->
+    <div class="control-group">
+      <span class="section-title">Source Select</span>
+      <div class="btn-row">
+        <button id="btn-webcam" class="active">Webcam</button>
+        <label for="video-upload" class="file-label">Upload Video</label>
+        <input type="file" id="video-upload" accept="video/*">
       </div>
-      <div class="slider-group">
-        <label>Trunk (Pitch):</label>
-        <input type="range" id="adj-pitch" min="-45" max="45" value="0">
+    </div>
+
+    <!-- 2. View Mode -->
+    <div class="control-group">
+      <span class="section-title">View Mode</span>
+      <div class="btn-row">
+        <button id="btn-mode-centroid" class="active">Centroid</button>
+        <button id="btn-mode-direct">Direct Map</button>
       </div>
-      <div class="slider-group">
-        <label>Scale:</label>
+      <div id="grid-toggle-row" class="btn-row" style="display:none; margin-top:4px;">
+        <button id="btn-toggle-grid">Grid: OFF</button>
+      </div>
+    </div>
+
+    <!-- 3. Calibration -->
+    <div class="control-group">
+      <span class="section-title">Calibration</span>
+
+      <div class="slider-item">
+        <span class="slider-label">Smoothing</span>
+        <input type="range" id="adj-smooth" min="0.05" max="1.0" step="0.05" value="0.35">
+      </div>
+      <div class="slider-item">
+        <span class="slider-label">Global Scale</span>
         <input type="range" id="adj-scale" min="0.5" max="5.0" step="0.1" value="2.5">
       </div>
-      <div class="slider-group">
-        <label>Offset X:</label>
+      <div class="slider-item">
+        <span class="slider-label">Box Bright</span>
+        <input type="range" id="adj-brightness" min="0.1" max="2.0" step="0.1" value="1.0">
+      </div>
+      <div class="slider-item">
+        <span class="slider-label">Direct Depth</span>
+        <input type="range" id="adj-direct-depth" min="-4.0" max="4.0" step="0.1" value="0">
+      </div>
+
+      <div class="slider-item">
+        <span class="slider-label">Video Opacity</span>
+        <input type="range" id="adj-video-opacity" min="0.0" max="1.0" step="0.05" value="0.5">
+      </div>
+      <div class="slider-item">
+        <span class="slider-label">Body Thickness</span>
+        <input type="range" id="adj-body-thickness" min="0.01" max="1.0" step="0.01" value="0.15">
+      </div>
+      <div class="slider-item">
+        <span class="slider-label">Bone Length</span>
+        <input type="range" id="adj-bone-length" min="0.1" max="2.0" step="0.05" value="1.0">
+      </div>
+      <div class="slider-item">
+        <span class="slider-label">Head Scale</span>
+        <input type="range" id="adj-head-scale" min="0.1" max="3.0" step="0.1" value="0.33">
+      </div>
+
+      <div class="slider-item">
+        <span class="slider-label">Shoulder Roll</span>
+        <input type="range" id="adj-roll" min="-45" max="45" value="2">
+      </div>
+      <div class="slider-item">
+        <span class="slider-label">Trunk Pitch</span>
+        <input type="range" id="adj-pitch" min="-45" max="45" value="0">
+      </div>
+
+      <div class="slider-item">
+        <span class="slider-label">Offset X</span>
         <input type="range" id="adj-x" min="-2.0" max="2.0" step="0.1" value="0">
       </div>
-      <div class="slider-group">
-        <label>Offset Y:</label>
+      <div class="slider-item">
+        <span class="slider-label">Offset Y</span>
         <input type="range" id="adj-y" min="-2.0" max="2.0" step="0.1" value="0">
       </div>
-      <div class="slider-group">
-        <label>Offset Z:</label>
+      <div class="slider-item">
+        <span class="slider-label">Offset Z</span>
         <input type="range" id="adj-z" min="-2.0" max="2.0" step="0.1" value="0">
+      </div>
+
+      <button id="btn-reset-calibration"
+        style="margin-top: 6px; width: 100%; border-color: var(--accent); color: var(--accent); background: rgba(255, 0, 200, 0.05); font-size: 0.7rem; padding: 4px;">Reset
+        to Defaults</button>
+    </div>
+
+    <!-- 4. Video Analysis (conditional) -->
+    <div id="video-controls" style="display: none;" class="control-group">
+      <span class="section-title">Video Analysis</span>
+      <div class="btn-row" style="margin-bottom: 15px;">
+        <button id="btn-play-pause">Pause</button>
+        <div id="video-time" style="font-size: 0.75rem; align-self: center; font-family: monospace;">00:00 / 00:00</div>
+      </div>
+
+      <div class="slider-item">
+        <input type="range" id="video-seek" min="0" max="100" value="0" step="0.1">
+      </div>
+
+      <div class="slider-item">
+        <div class="slider-header">
+          <span id="speed-label" class="slider-label">Speed: 1.0x</span>
+        </div>
+        <input type="range" id="video-speed" min="0" max="1" value="1" step="0.01">
+      </div>
+
+      <div class="btn-row" id="frame-step-controls">
+        <button id="btn-step-back">Prev</button>
+        <button id="btn-step">Next</button>
+      </div>
+
+      <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
+        <span class="section-title">A-B Loop</span>
+        <div class="btn-row">
+          <button id="btn-set-a">Set A</button>
+          <button id="btn-set-b">Set B</button>
+        </div>
+        <div class="ab-display">
+          <span>A: <span id="point-a-val">--:--</span></span>
+          <span id="ab-status-text" style="font-weight: bold;">LOOP OFF</span>
+          <span>B: <span id="point-b-val">--:--</span></span>
+        </div>
+        <div class="btn-row" style="margin-top: 6px;">
+          <button id="btn-toggle-repeat">Repeat</button>
+          <button id="btn-clear-ab">Clear</button>
+        </div>
+      </div>
+
+      <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
+        <span class="section-title">3D Capture</span>
+        <div class="btn-row">
+          <button id="btn-capture-start">&#9210; Capture</button>
+          <button id="btn-capture-stop" style="display:none;">&#9632; Stop</button>
+        </div>
+        <div id="capture-progress"
+          style="display:none; font-size:0.7rem; font-family:monospace; color:var(--primary); margin-top:4px; text-align:center;">
+          0 / 0 frames</div>
+        <a id="capture-download"
+          style="display:none; margin-top:6px; width:100%; text-align:center; padding:5px; background:rgba(0,242,255,0.1); border:1px solid var(--primary); border-radius:6px; color:var(--primary); font-size:0.72rem; font-weight:600; cursor:pointer; text-decoration:none;"
+          download="pose_capture.webm">&#11015; Download WebM</a>
       </div>
     </div>
   </div>
-  <video id="webcam" autoplay playsinline loop muted></video>
-  <div id="canvas-container"></div>
+
+  <div id="video-container">
+    <video id="webcam" autoplay playsinline loop muted></video>
+  </div>
+
+  <div id="canvas-container"></div>
+
 </body>
 
 </html>
