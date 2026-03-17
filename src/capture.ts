@@ -8,7 +8,7 @@ export interface CaptureOptions {
 
 export interface CaptureCallbacks {
     /** フレーム処理ごとに呼ばれる描画コールバック。videoTimeMs はビデオの現在時刻(ms) */
-    onRender: (videoTimeMs: number) => void;
+    onRender: (videoTimeMs: number) => void | Promise<void>;
     /** 進捗コールバック */
     onProgress: (frame: number, total: number) => void;
     /** 完了時に WebM Blob を渡す */
@@ -86,14 +86,17 @@ export class FrameCaptureManager {
                     await this.waitForSeek();
                 }
 
+                // readyState が HAVE_CURRENT_DATA (>=2) になるまで待つ
+                await this.waitForReadyState();
+
                 if (encodeError) {
                     console.error("[Capture] Encoder Error during loop:", encodeError);
                     throw encodeError;
                 }
 
-                // ポーズ推定 + レンダリング（呼び出し元が実施）
+                // ポーズ推定 + レンダリング（呼び出し元が実施、Promise を返す場合はawait）
                 const virtualTimeMs = Math.round((i * frameUs) / 1000);
-                callbacks.onRender(virtualTimeMs);
+                await callbacks.onRender(virtualTimeMs);
 
                 // canvas フレームをキャプチャして VideoFrame に変換 (待ち時間の前に実行)
                 const bitmap = await createImageBitmap(this.canvas, 0, 0, width, height);
@@ -134,18 +137,44 @@ export class FrameCaptureManager {
         this.shouldStop = true;
     }
 
+    /**
+     * seeked イベントを待つ。タイムアウト（2000ms）は保険として残す。
+     */
     private waitForSeek(): Promise<void> {
         return new Promise<void>(resolve => {
             let done = false;
-            const handler = () => {
+            const finish = () => {
                 if (done) return;
                 done = true;
-                this.video.removeEventListener('seeked', handler);
+                this.video.removeEventListener('seeked', finish);
+                clearTimeout(timer);
                 resolve();
             };
-            this.video.addEventListener('seeked', handler, { once: true });
-            // シークが即完了している場合のフォールバック
-            setTimeout(handler, 500);
+            this.video.addEventListener('seeked', finish, { once: true });
+            // シークが即完了している場合やタイムアウト保険
+            const timer = setTimeout(finish, 2000);
+        });
+    }
+
+    /**
+     * video.readyState >= HAVE_CURRENT_DATA (2) になるまでポーリングで待つ。
+     * 最大 2000ms 待って諦める。
+     */
+    private waitForReadyState(): Promise<void> {
+        return new Promise<void>(resolve => {
+            if (this.video.readyState >= 2) {
+                resolve();
+                return;
+            }
+            const deadline = Date.now() + 2000;
+            const check = () => {
+                if (this.video.readyState >= 2 || Date.now() >= deadline) {
+                    resolve();
+                } else {
+                    requestAnimationFrame(check);
+                }
+            };
+            requestAnimationFrame(check);
         });
     }
 

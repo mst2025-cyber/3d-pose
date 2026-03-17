@@ -198,17 +198,38 @@ export class PoseProcessor {
         }
     }
 
+    private lastTimestamp = -1;
+    private timestampOffset = 0;
+
     /**
      * 1フレームのポーズ推定を実行（EMAスムージング済み）
+     * MediaPipeのビデオモードではタイムスタンプが厳密に増加する必要があるため、
+     * 内部でオフセットを管理して逆転を防ぐ。
      */
     public estimate(timestamp: number) {
         if (!this.poseLandmarker || this.video.readyState < 2) return null;
-        const raw = this.poseLandmarker.detectForVideo(this.video, timestamp);
-        if (!raw || !raw.worldLandmarks?.length || !raw.landmarks?.length) return raw;
 
-        const { worldLandmarks, normalizedLandmarks } = this.smoother.smooth(
-            raw.worldLandmarks, raw.landmarks
-        );
-        return { ...raw, worldLandmarks, landmarks: normalizedLandmarks };
+        let effectiveTimestamp = timestamp + this.timestampOffset;
+        if (effectiveTimestamp <= this.lastTimestamp) {
+            // タイムスタンプが逆転または重複した場合（ソース切り替え、ループ時、キャプチャ開始時など）
+            // 前回よりも1ms先になるようにオフセットを調整する
+            this.timestampOffset = (this.lastTimestamp - timestamp) + 1;
+            effectiveTimestamp = timestamp + this.timestampOffset;
+        }
+        this.lastTimestamp = effectiveTimestamp;
+
+        try {
+            const raw = this.poseLandmarker.detectForVideo(this.video, effectiveTimestamp);
+            if (!raw || !raw.worldLandmarks?.length || !raw.landmarks?.length) return raw;
+
+            const { worldLandmarks, normalizedLandmarks } = this.smoother.smooth(
+                raw.worldLandmarks, raw.landmarks
+            );
+            return { ...raw, worldLandmarks, landmarks: normalizedLandmarks };
+        } catch (error) {
+            console.error("MediaPipe estimate error:", error);
+            // エラーが発生してもクラッシュさせず、nullを返してお茶を濁す
+            return null;
+        }
     }
 }
